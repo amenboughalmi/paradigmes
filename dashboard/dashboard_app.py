@@ -436,7 +436,7 @@ def render_comparison_insights():
         - **Individual event processing** with low latency
         - **Higher responsiveness** for alerts/actions
         - **Useful for**: Real-time control, IoT, alerts
-        - **Latency**: <300ms (milliseconds!)
+        - **Latency**: <300ms
         """)
 
 
