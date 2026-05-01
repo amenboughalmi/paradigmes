@@ -1,15 +1,3 @@
-"""
-Streamlit Dashboard: Reactive vs Traditional IoT Paradigm Comparison
-=====================================================================
-
-This dashboard provides a LIVE, SIDE-BY-SIDE comparison of:
-- Traditional: Windowed, delayed batch processing (5-second windows)
-- Reactive: Event-driven, immediate response (millisecond latency)
-
-Visual indicators make the paradigm differences IMMEDIATELY apparent
-for presentations and screenshots.
-"""
-
 import random
 import sys
 import time
@@ -24,16 +12,16 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.engines import ReactiveEngine, TraditionalEngine
+from core.sensors import motion_sensor, temperature_sensor
 from core.config import HIGH_TEMP_THRESHOLD, WINDOW_SECONDS
 
 MAX_POINTS = 160
 ALERT_REFRESH_MS = 350
-TEMP_AXIS_MIN = 16.0
-TEMP_AXIS_MAX = 25.5
+TEMP_MIN = 15.0
+TEMP_MAX = 30.0
 
 
 def init_state():
-    """Initialize Streamlit session state."""
     defaults = {
         "running": False,
         "mode": "Both",
@@ -65,6 +53,8 @@ def reset_simulation_state():
 
     if st.session_state.reactive_engine is not None:
         st.session_state.reactive_engine.dispose()
+    if st.session_state.traditional_engine is not None:
+        st.session_state.traditional_engine.stop()
     st.session_state.reactive_engine = None
     st.session_state.traditional_engine = None
     st.session_state.threshold_signature = None
@@ -89,6 +79,8 @@ def ensure_engines(mode, threshold):
     if st.session_state.threshold_signature != threshold_signature or st.session_state.last_mode_signature != mode_signature:
         if st.session_state.reactive_engine is not None:
             st.session_state.reactive_engine.dispose()
+        if st.session_state.traditional_engine is not None:
+            st.session_state.traditional_engine.stop()
 
         if mode in ("Reactive", "Both"):
             st.session_state.reactive_engine = ReactiveEngine(threshold, st.session_state.alerts)
@@ -96,7 +88,9 @@ def ensure_engines(mode, threshold):
             st.session_state.reactive_engine = None
 
         if mode in ("Traditional", "Both"):
-            st.session_state.traditional_engine = TraditionalEngine(threshold, st.session_state.alerts)
+            st.session_state.traditional_engine = TraditionalEngine(
+                threshold, st.session_state.alerts, motion_sensor, temperature_sensor
+            )
         else:
             st.session_state.traditional_engine = None
 
@@ -148,8 +142,6 @@ def update_simulation(mode):
     for event in events:
         if reactive_engine is not None:
             reactive_engine.on_event(event)
-        if traditional_engine is not None:
-            traditional_engine.on_event(event)
 
     if traditional_engine is not None:
         traditional_engine.tick(now_ts)
@@ -158,7 +150,6 @@ def update_simulation(mode):
 
 
 def render_header():
-    """Render page header with styling."""
     st.markdown(
         """
         <style>
@@ -214,7 +205,6 @@ def render_header():
 
 
 def render_controls():
-    """Render control panel."""
     col1, col2, col3, col4, col5 = st.columns([1.1, 1.2, 1.2, 1.0, 0.9])
 
     with col1:
@@ -275,25 +265,22 @@ def _to_chart_df(points, x_col="ts"):
     return df
 
 
-def _render_temp_line_chart(df, value_col, y_title, color):
+def _render_temp_chart(df, value_col, color="#4caf50"):
+    if df.empty:
+        return
     chart = (
         alt.Chart(df)
-        .mark_line(color=color, strokeWidth=2)
+        .mark_line(color=color, size=2)
         .encode(
-            x=alt.X("time:T", title="Time"),
-            y=alt.Y(
-                f"{value_col}:Q",
-                title=y_title,
-                scale=alt.Scale(domain=[TEMP_AXIS_MIN, TEMP_AXIS_MAX]),
-            ),
+            x=alt.X("time:T"),
+            y=alt.Y(f"{value_col}:Q", scale=alt.Scale(domain=[TEMP_MIN, TEMP_MAX])),
         )
         .properties(height=250)
     )
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width="stretch")
 
 
 def render_traditional_panel(panel):
-    """Render Traditional engine panel with windowed metrics."""
     engine = st.session_state.traditional_engine
     
     with panel:
@@ -333,7 +320,7 @@ def render_traditional_panel(panel):
         summary_df = _to_chart_df(engine.summary_points)
         
         if not summary_df.empty:
-            _render_temp_line_chart(summary_df, "avg_temp", "Avg Temperature (°C)", "#ff9800")
+            _render_temp_chart(summary_df, "avg_temp", "#ff9800")
         else:
             st.info("Waiting for first 5-second window to close...")
 
@@ -362,7 +349,6 @@ def render_traditional_panel(panel):
 
 
 def render_reactive_panel(panel):
-    """Render Reactive engine panel with immediate metrics."""
     engine = st.session_state.reactive_engine
     
     with panel:
@@ -403,7 +389,7 @@ def render_reactive_panel(panel):
         temp_df = _to_chart_df(engine.temp_points)
         
         if not temp_df.empty:
-            _render_temp_line_chart(temp_df, "temp", "Temperature (°C)", "#4caf50")
+            _render_temp_chart(temp_df, "temp", "#4caf50")
         else:
             st.info("Waiting for first temperature reading...")
 
@@ -429,7 +415,6 @@ def render_reactive_panel(panel):
 
 
 def render_comparison_insights():
-    """Render insights about the paradigm differences."""
     st.divider()
     
     col_insight1, col_insight2 = st.columns(2)
@@ -441,7 +426,7 @@ def render_comparison_insights():
         - **Delayed processing** until window closes
         - **Lower CPU per event** (batched)
         - **Useful for**: Reports, analytics, backpressure
-        - **Latency**: ~2.5-5 seconds
+        - **Latency**: ~5 seconds
         """)
     
     with col_insight2:
@@ -456,7 +441,6 @@ def render_comparison_insights():
 
 
 def main():
-    """Main dashboard application."""
     st.set_page_config(
         page_title="Reactive IoT Dashboard",
         layout="wide",

@@ -1,8 +1,3 @@
-"""
-Simulated IoT sensor generators.
-Produces infinite streams of sensor readings with realistic behavior.
-"""
-
 import random
 import time
 from .config import (
@@ -16,12 +11,6 @@ from .config import (
 
 
 def motion_sensor():
-    """
-    Simulates a motion sensor: emits 0 (no motion) or 1 (motion detected).
-    
-    Yields:
-        dict: {"sensor": "motion", "value": 0|1, "timestamp": float}
-    """
     while True:
         motion = random.choice([0, 1])
         yield {
@@ -33,13 +22,6 @@ def motion_sensor():
 
 
 def temperature_sensor():
-    """
-    Simulates a temperature sensor: emits floating-point temperature readings.
-    Temperature fluctuates realistically with small random drift.
-    
-    Yields:
-        dict: {"sensor": "temperature", "value": float, "timestamp": float}
-    """
     temp = TEMPERATURE_INITIAL
     while True:
         drift = random.uniform(*TEMPERATURE_FLUCTUATION)
@@ -51,3 +33,4 @@ def temperature_sensor():
             "timestamp": time.time(),
         }
         time.sleep(random.uniform(*TEMPERATURE_SENSOR_INTERVAL))
+
